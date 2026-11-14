@@ -53,3 +53,18 @@ class Product(ABC):
     @abstractmethod
     def get_fulfilment_info(self) -> str:
         pass
+
+    def __init__(self, product_id: str, name: str, price: float,
+                 stock: int, supplier: Supplier):
+        # validation: the Product protects its own rules
+        if price <= 0:
+            raise ValueError("Price must be greater than zero.")
+        if stock < 0:
+            raise ValueError("Stock quantity cannot be negative.")
+        self.__product_id: str = product_id
+        # ... the rest of __init__ stays the same
+
+    def update_stock(self, quantity: int) -> None:
+        if quantity < 0:
+            raise ValueError("Stock quantity cannot be negative.")
+        self.__stock = quantity
