@@ -18,8 +18,18 @@ from physicalproduct import PhysicalProduct
 from digitalproduct import DigitalProduct
 from product import Product
 from supplier import Supplier
+from productfactory import ProductFactory
+from input_helpers import get_positive_float
 
 file_name = "inventory.json"
+
+
+def create_product_from_dict(item: dict) -> Product:
+    s = item["Supplier"]
+    supplier = Supplier(s["ID"], s["Name"], s["Email"])
+    extra = item.get("Weight", item.get("Download_size"))
+    return ProductFactory.create(item["Type"], item["ID"], item["Name"],
+                                 item["Price"], item["Stock"], supplier, extra)
 
 
 # 5.save
