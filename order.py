@@ -1,9 +1,12 @@
+from discountstrategy import DiscountStrategy, NoDiscount
 from product import Product
 
 
 class OrderLine:
     def __init__(self, product: Product, quantity: int) -> None:
-        # association: the line refers to a Product but does not own it
+        # validation: the OrderLine protects its own quantity
+        if quantity <= 0:
+            raise ValueError("Quantity must be greater than zero.")
         self.__product: Product = product
         self.__quantity: int = quantity
 
@@ -19,12 +22,16 @@ class OrderLine:
 
 
 class Order:
-    def __init__(self, order_id: str) -> None:
+    def __init__(self, order_id: str,
+                 discount: DiscountStrategy | None = None) -> None:
         self.__order_id: str = order_id
-        # composition: the Order owns its OrderLine objects
         self.__order_lines: list[OrderLine] = []
+        self.__discount: DiscountStrategy = (
+            discount if discount is not None else NoDiscount())
 
-    # the Order creates the OrderLine itself
+    def set_discount(self, discount: DiscountStrategy) -> None:
+        self.__discount = discount
+
     def add_order_line(self, product: Product, quantity: int) -> None:
         self.__order_lines.append(OrderLine(product, quantity))
 
@@ -38,7 +45,8 @@ class Order:
         return self.__order_lines
 
     def calculate_total(self) -> float:
-        return sum(line.calculate_subtotal() for line in self.__order_lines)
+        total = sum(line.calculate_subtotal() for line in self.__order_lines)
+        return self.__discount.apply(total)
 
     def display_information(self) -> None:
         print(f"Order {self.__order_id}")
