@@ -14,22 +14,12 @@
 import json
 import os
 from inventory import Inventory
-from physicalproduct import PhysicalProduct
-from digitalproduct import DigitalProduct
 from product import Product
 from supplier import Supplier
 from productfactory import ProductFactory
 from input_helpers import get_positive_float
 
 file_name = "inventory.json"
-
-
-def create_product_from_dict(item: dict) -> Product:
-    s = item["Supplier"]
-    supplier = Supplier(s["ID"], s["Name"], s["Email"])
-    extra = item.get("Weight", item.get("Download_size"))
-    return ProductFactory.create(item["Type"], item["ID"], item["Name"],
-                                 item["Price"], item["Stock"], supplier, extra)
 
 
 # 5.save
@@ -39,18 +29,13 @@ def save_inventory(inventory: Inventory) -> None:
         json.dump(data, file, indent=4)
 
 
-# load: pick the right subclass using "Type"
-def create_product_from_dict(item: dict) -> Product | None:
+# load: the factory picks the right subclass using "Type"
+def create_product_from_dict(item: dict) -> Product:
     s = item["Supplier"]
     supplier = Supplier(s["ID"], s["Name"], s["Email"])
-
-    if item["Type"] == "physical":
-        return PhysicalProduct(item["ID"], item["Name"], item["Price"],
-                               item["Stock"], supplier, item["Weight"])
-    elif item["Type"] == "digital":
-        return DigitalProduct(item["ID"], item["Name"], item["Price"],
-                              item["Stock"], supplier, item["Download_size"])
-    return None
+    extra = item.get("Weight", item.get("Download_size"))
+    return ProductFactory.create(item["Type"], item["ID"], item["Name"],
+                                 item["Price"], item["Stock"], supplier, extra)
 
 
 # 1.display (load)
@@ -60,60 +45,53 @@ def load_inventory() -> Inventory:
         with open(file_name, "r") as file:
             data = json.load(file)
         for item in data:
-            product = create_product_from_dict(item)
-            if product is not None:
-                inventory.add_product(product)
+            try:
+                inventory.add_product(create_product_from_dict(item))
+            except (KeyError, ValueError) as error:
+                print(f"Skipping bad record: {error}")
         print("inventory.json found. Inventory loaded successfully.")
     else:
         print("inventory.json not found. Creating default inventory.")
         supplier = Supplier("S001", "TechSupply", "sales@techsupply.com")
-        inventory.add_product(PhysicalProduct(
-            "P001", "Laptop", 1200.00, 15, supplier, 2.1))
-        inventory.add_product(PhysicalProduct(
-            "P002", "Mouse", 25.50, 40, supplier, 0.1))
-        inventory.add_product(DigitalProduct(
-            "P003", "Antivirus", 45.00, 25, supplier, 300))
+        inventory.add_product(ProductFactory.create(
+            "physical", "P001", "Laptop", 1200.00, 15, supplier, 2.1))
+        inventory.add_product(ProductFactory.create(
+            "physical", "P002", "Mouse", 25.50, 40, supplier, 0.1))
+        inventory.add_product(ProductFactory.create(
+            "digital", "P003", "Antivirus", 45.00, 25, supplier, 300))
         save_inventory(inventory)
     return inventory
 
 
-# 2.add product
 def add_product_menu(inventory: Inventory) -> None:
     print("\nAdd New Product")
     print("1. Physical product")
     print("2. Digital product")
-    product_type = input("Choose type (1/2): ")
-    if product_type not in ("1", "2"):
+    choice = input("Choose type (1/2): ")
+    if choice not in ("1", "2"):
         print("Invalid type.")
         return
+    product_type = "physical" if choice == "1" else "digital"
 
     product_id = input("Product ID: ")
     name = input("Product Name: ")
+    price = get_positive_float("Price: ")
+    supplier = Supplier(input("Supplier ID: "), input("Supplier Name: "),
+                        input("Supplier Email: "))
     try:
-        price = float(input("Price: "))
         stock = int(input("Stock Quantity: "))
-
-        supplier = Supplier(input("Supplier ID: "),
-                            input("Supplier Name: "),
-                            input("Supplier Email: "))
-
-        if product_type == "1":
-            weight = float(input("Weight (kg): "))
-            product = PhysicalProduct(product_id, name, price, stock,
-                                      supplier, weight)
-        else:
-            size = float(input("Download size (MB): "))
-            product = DigitalProduct(product_id, name, price, stock,
-                                     supplier, size)
-    except ValueError:
-        print("Invalid number entered.")
+        label = "Weight (kg): " if product_type == "physical" else "Download size (MB): "
+        extra = float(input(label))
+        product = ProductFactory.create(product_type, product_id, name,
+                                        price, stock, supplier, extra)
+    except ValueError as error:
+        print(f"Could not add product: {error}")
         return
 
     if inventory.add_product(product):
         print("\nProduct added successfully!")
 
 
-# 3.update
 def update_stock_menu(inventory: Inventory) -> None:
     print("\nUpdate Stock")
     product = inventory.find_product(input("Enter Product ID: "))
@@ -123,14 +101,15 @@ def update_stock_menu(inventory: Inventory) -> None:
     product.display_information()
     try:
         quantity = int(input("New Stock Quantity: "))
-    except ValueError:
-        print("Invalid number entered.")
+        product.update_stock(quantity)
+    except ValueError as error:
+        print(f"Could not update stock: {error}")
         return
-    if product.update_stock(quantity):
-        print("\nStock updated successfully!")
-
+    print("\nStock updated successfully!")
 
 # 4.search product
+
+
 def search_product_menu(inventory: Inventory) -> None:
     print("\nSearch Product")
     product = inventory.find_product(input("Enter Product ID: "))
